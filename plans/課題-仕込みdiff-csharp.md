@@ -1,6 +1,7 @@
 # 課題 仕込み diff 集（C# / ASP.NET Core 版）
 
 > このファイルは `training-shared` の `課題カタログ.md` の **C# 版実装**。各課題の「狙い・症状・不変条件・難度」はカタログを参照。ここには **C# 固有の実 diff・該当ファイル・テスト名**だけを置く。
+> **番号のキー**: A1〜A8 は**受講者ガイドの課題1〜8（＝カタログ A1〜A8）**と同じ番号。全ドキュメント共通で同じ番号が同じ課題を指す。
 > **取り扱い注意**: 解答 diff そのもの。受講者には渡さない。
 
 `<root>` = `training-backend-csharp/src`。各 diff は `main`（完成形）に対して「壊す向き（before→after）」で示す。**解答＝この diff を逆に当てて `main` に戻すこと**。
@@ -9,21 +10,7 @@
 
 ## A. バグ修正型
 
-### A1. 税込の丸めが狂う
-- **仕込み箇所**: `<root>/Services/PricingService.cs` `CalculateTotal`
-
-```diff
--        return Math.Round(withTax, 0, MidpointRounding.AwayFromZero);
-+        return Math.Round(withTax, 0, MidpointRounding.ToEven); // ← 仕込み: 偶数丸め
-```
-
-- **再現**: 小計 105 円（税込 115.5）→ 期待 116 が 115 になる。
-- **赤になるテスト**: `PricingServiceTests.CalculateTotal_rounds_to_whole_yen`。
-- **ヒント段階**: ①金額計算はどの層・どのクラス？ ②テストが教える正しい値は何円？実際は？ ③`Math.Round` の第3引数（丸めモード）の意味を調べよ。
-- **解答**: `MidpointRounding.AwayFromZero` に戻す。
-- ※C# は `Math.Round` 既定が偶数丸め。他言語では罠が逆になる（カタログ「移植時の注意」参照）。
-
-### A2. 定率クーポンの計算ミス
+### A1. 定率クーポンの計算ミス
 - **仕込み箇所**: `<root>/Services/PricingService.cs` `ApplyCoupon`
 
 ```diff
@@ -36,46 +23,7 @@
 - **ヒント段階**: ①定額は合うのに定率だけずれる、違いはどこ？ ②`DiscountType` の分岐を1つずつ読む。`Percentage` の式は「％」を表現できているか？
 - **解答**: `subtotal * (1m - coupon.DiscountValue / 100m)` に戻す。
 
-### A3. 数量合算漏れ（同一商品の複数行）
-- **仕込み箇所**: `<root>/Services/OrderService.cs` `CreateAsync`
-
-```diff
--        // 同じ商品が複数行で来ても在庫チェックが正しく効くよう、商品ごとに数量を合算する
--        var requestedQuantities = request.Items
--            .GroupBy(i => i.ProductId)
--            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-+        // ← 仕込み: 合算せず行をそのまま辞書化（同一商品が複数行だと最後の行で上書きされる）
-+        var requestedQuantities = request.Items
-+            .ToDictionary(i => i.ProductId, i => i.Quantity);
-```
-
-> 別バリエーション（より分かりやすい破綻）: 在庫チェックを `request.Items` ごとに行う形 → 在庫50に「30 + 30」が通る。受講者レベルで選ぶ。
-
-- **再現**: `items: [{1, 30}, {1, 30}]`（在庫50のノート）→ 正: 合算60で 400 / バグ: 30 で通る。
-- **赤になるテスト**: 完成形に合算ケースが無い。**まず再現テストを書かせる**。解答ブランチに追加しておくテスト:
-
-```csharp
-[Fact]
-public async Task CreateAsync_aggregates_quantity_for_same_product()
-{
-    using var db = SeededContext();
-    var service = CreateService(db);
-    var request = new CreateOrderRequest
-    {
-        Items = new()
-        {
-            new CreateOrderItemRequest { ProductId = 2, Quantity = 12 },
-            new CreateOrderItemRequest { ProductId = 2, Quantity = 12 } // 合算24、在庫20
-        }
-    };
-    await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateAsync(request));
-}
-```
-
-- **ヒント段階**: ①同じ商品を2行に分けると何が起きる？手で叩け。 ②在庫チェックは合算後の数量で行われているか？ ③まず壊れを再現するテストを書いてから直す。
-- **解答**: `GroupBy(...).Sum()` で合算する形に戻す。
-
-### A4. 在庫チェックの境界（off-by-one）
+### A2. 在庫チェックの境界（off-by-one）
 - **仕込み箇所**: `<root>/Services/OrderService.cs` `CreateAsync`
 
 ```diff
@@ -104,7 +52,7 @@ public async Task CreateAsync_allows_buying_exact_stock()
 - **ヒント段階**: ①「在庫不足」はどこで投げている？ ②比べる演算子は `<`？`<=`？「在庫＝要求」でどちらに転ぶ？
 - **解答**: `<` に戻す。
 
-### A5. 単価スナップショットの崩れ
+### A3. 単価スナップショットの崩れ
 - **仕込み箇所**: `<root>/Services/OrderService.cs` `MapToDto`
 
 ```diff
@@ -146,7 +94,7 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **ヒント段階**: ①`OrderItem` に `UnitPrice` 列があるのはなぜ？`Product.Price` があるのに。 ②表示時、明細単価はどの値から作られている？保存済み？今の商品価格？
 - **解答**: `i.UnitPrice` / `i.UnitPrice * i.Quantity` に戻す。
 
-### A6. キャンセルで在庫が戻らない
+### A4. キャンセルで在庫が戻らない
 - **仕込み箇所**: `<root>/Services/OrderService.cs` `CancelAsync`
 
 ```diff
@@ -162,7 +110,7 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **ヒント段階**: ①キャンセル時に「ステータス変更」以外にやるべき副作用は？ ②注文時に在庫を引いた。キャンセルでは？
 - **解答**: 在庫戻しループを復活させる。
 
-### A7. 二重キャンセルを許容
+### A5. 二重キャンセルを許容
 - **仕込み箇所**: `<root>/Services/OrderService.cs` `CancelAsync`
 
 ```diff
@@ -177,7 +125,7 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **ヒント段階**: ①キャンセル済みをもう一度キャンセルすると？ ②「もう処理済み」を弾くチェックはどこにあるべき？
 - **解答**: 既キャンセルガードを戻す。
 
-### A8. NotFound が 500 になる
+### A6. NotFound が 500 になる
 - **仕込み箇所（案1: Service 側）**: `<root>/Services/OrderService.cs` `GetByIdAsync`
 
 ```diff
@@ -191,6 +139,74 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **赤になるテスト**: `OrderServiceTests.GetByIdAsync_throws_NotFound_for_unknown_order`（案1）。案2は Middleware の統合テストが無いので、エンドポイント越しテストを足すか Swagger で手動確認。
 - **ヒント段階**: ①Controller に try/catch が無い。例外はどこで HTTP に変換されている？ ②Middleware はどの例外型を 404 に？Service はその型を投げている？
 - **解答**: `NotFoundException` を投げる／catch を戻す。
+
+### A7. 税込の丸めが狂う
+- **仕込み箇所**: `<root>/Services/PricingService.cs` `CalculateTotal`
+
+```diff
+-        return Math.Round(withTax, 0, MidpointRounding.AwayFromZero);
++        return Math.Round(withTax, 0, MidpointRounding.ToEven); // ← 仕込み: 偶数丸め
+```
+
+- **再現**: ボールペン1本 + `SALE10`（税抜 150 → 135 → 税込 148.5）→ 期待 149 が 148 になる。
+  - ※シード商品の価格は全て 50 の倍数。50 の倍数 ×1.10 は必ず整数になるので、**クーポン無し（や定額 `WELCOME500`）では税込が小数にならず、この仕込みは一切再現しない**。端数が出るのは定率 `SALE10`（正味係数 0.9×1.10=0.99）を併用したときだけ。
+  - ※偶数丸めでズレるのは「税込がちょうど N.5 かつ floor が偶数」のとき。`SALE10` 適用後で言うと税抜 150（→135→148.5）, 350, 550 … が該当。完成形カタログにあった「小計 105 → 115.5 が 115 になる」は**誤り**（115.5 は偶数丸めでも 116。そもそも 105 円という小計も 50 の倍数でない実商品では作れない）。
+- **赤になるテスト**: **無い（仕込んでも全テスト緑のまま）**。完成形の `CalculateTotal_rounds_to_whole_yen`（小計 105・クーポン無し）は上記理由でこの仕込みを検出**できない**。これは「初期テストにこのケースが漏れていた」という想定の課題で、**まず受講者に再現テストを書かせてから直させる**（A8 数量合算と同じ進め方）。解答ブランチに追加しておくテスト:
+
+```csharp
+[Fact]
+public void CalculateTotal_rounds_half_up_with_percentage_coupon()
+{
+    var items = Items((150m, 1)); // ボールペン 1 本（税抜 150）
+    var coupon = new Coupon { DiscountType = DiscountType.Percentage, DiscountValue = 10m }; // SALE10
+
+    // 150 × 0.9 = 135 → ×1.10 = 148.5 → 四捨五入で 149（偶数丸めだと 148 になる）
+    Assert.Equal(149m, _pricing.CalculateTotal(items, coupon));
+}
+```
+
+- **ヒント段階**: ①`dotnet test` は全部緑なのに画面では合計が違う——既存テストはこのケースを試していない。②まず壊れを再現するテストを書く（どんな注文なら端数が出る？ `SALE10` 併用が鍵）。③金額計算はどの層・どのクラス？ ④`Math.Round` の第3引数（丸めモード）の意味を調べよ。
+- **解答**: `MidpointRounding.AwayFromZero` に戻す。
+- ※C# は `Math.Round` 既定が偶数丸め。他言語では罠が逆になる（カタログ「移植時の注意」参照）。
+
+### A8. 数量合算漏れ（同一商品の複数行）
+- **仕込み箇所**: `<root>/Services/OrderService.cs` `CreateAsync`
+
+```diff
+-        // 同じ商品が複数行で来ても在庫チェックが正しく効くよう、商品ごとに数量を合算する
+-        var requestedQuantities = request.Items
+-            .GroupBy(i => i.ProductId)
+-            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
++        // ← 仕込み: 合算せず行をそのまま辞書化（同一商品が複数行だと最後の行で上書きされる）
++        var requestedQuantities = request.Items
++            .ToDictionary(i => i.ProductId, i => i.Quantity);
+```
+
+> 別バリエーション（より分かりやすい破綻）: 在庫チェックを `request.Items` ごとに行う形 → 在庫50に「30 + 30」が通る。受講者レベルで選ぶ。
+
+- **再現**: `items: [{1, 30}, {1, 30}]`（在庫50のノート）→ 正: 合算60で 400 / バグ: 30 で通る。
+- **赤になるテスト**: 完成形に合算ケースが無い。**まず再現テストを書かせる**。解答ブランチに追加しておくテスト:
+
+```csharp
+[Fact]
+public async Task CreateAsync_aggregates_quantity_for_same_product()
+{
+    using var db = SeededContext();
+    var service = CreateService(db);
+    var request = new CreateOrderRequest
+    {
+        Items = new()
+        {
+            new CreateOrderItemRequest { ProductId = 2, Quantity = 12 },
+            new CreateOrderItemRequest { ProductId = 2, Quantity = 12 } // 合算24、在庫20
+        }
+    };
+    await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateAsync(request));
+}
+```
+
+- **ヒント段階**: ①同じ商品を2行に分けると何が起きる？手で叩け。 ②在庫チェックは合算後の数量で行われているか？ ③まず壊れを再現するテストを書いてから直す。
+- **解答**: `GroupBy(...).Sum()` で合算する形に戻す。
 
 ---
 
