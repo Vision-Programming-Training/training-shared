@@ -110,20 +110,20 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **ヒント段階**: ①キャンセル時に「ステータス変更」以外にやるべき副作用は？ ②注文時に在庫を引いた。キャンセルでは？
 - **解答**: 在庫戻しループを復活させる。
 
-### A5. 二重キャンセルを許容
-- **仕込み箇所**: `<root>/Services/OrderService.cs` `CancelAsync`
+### A5. 無効なクーポンコードが黙って無視される
+- **仕込み箇所**: `<root>/Services/OrderService.cs` `ResolveCouponAsync`
 
 ```diff
--        if (order.Status == OrderStatus.Cancelled)
--        {
--            throw new BusinessRuleException("この注文は既にキャンセル済みです。");
--        }
-+        // ← 仕込み: 既キャンセル判定を削除
+-        return await _orderRepository.GetCouponByCodeAsync(couponCode)
+-            ?? throw new BusinessRuleException($"クーポンが無効です (Code: {couponCode})");
++        return await _orderRepository.GetCouponByCodeAsync(couponCode); // ← 仕込み: 無効コードを黙ってクーポン無し扱い
 ```
 
-- **赤になるテスト**: `OrderServiceTests.CancelAsync_throws_when_already_cancelled`。
-- **ヒント段階**: ①キャンセル済みをもう一度キャンセルすると？ ②「もう処理済み」を弾くチェックはどこにあるべき？
-- **解答**: 既キャンセルガードを戻す。
+- **再現**: カートで存在しないコード（例 `SALE99`）を入れて注文 → 正: 400「クーポンが無効です」 / バグ: 割引なしの満額で注文成立（トートバッグ1点なら 1980 円）。有効な `SALE10` / `WELCOME500` はこれまで通り効く。
+- **赤になるテスト**: `OrderServiceTests.CreateAsync_throws_when_coupon_is_invalid`（コード `"NOPE"` で `BusinessRuleException` を期待）。完成形に既にあるので再現テストの追加は不要。
+- **ヒント段階**: ①有効なコードは効くのに、デタラメなコードを入れても素通りする。クーポンを引き当てている処理はどこ？ ②`GetCouponByCodeAsync` が `null` を返したとき、その後どう振る舞っている？「見つからない」を弾いているか？
+- **解答**: `?? throw new BusinessRuleException(...)` のガードを戻す。
+- **UI再現性メモ**: クーポンコードはフロントの自由入力テキスト（`shop.js` が `couponEl.value.trim()` を送信）なので UI は事前に弾けず、検証はサーバー責務になる。旧A5（二重キャンセル）はフロントがキャンセル済み注文にボタンを出さない（`orders.js`）ため UI から再現不能になり、本課題へ差し替えた。
 
 ### A6. NotFound が 500 になる
 - **仕込み箇所（案1: Service 側）**: `<root>/Services/OrderService.cs` `GetByIdAsync`
