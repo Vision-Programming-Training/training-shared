@@ -123,7 +123,7 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **赤になるテスト**: `OrderServiceTests.CreateAsync_throws_when_coupon_is_invalid`（コード `"NOPE"` で `BusinessRuleException` を期待）。完成形に既にあるので再現テストの追加は不要。
 - **ヒント段階**: ①有効なコードは効くのに、デタラメなコードを入れても素通りする。クーポンを引き当てている処理はどこ？ ②`GetCouponByCodeAsync` が `null` を返したとき、その後どう振る舞っている？「見つからない」を弾いているか？
 - **解答**: `?? throw new BusinessRuleException(...)` のガードを戻す。
-- **UI再現性メモ**: クーポンコードはフロントの自由入力テキスト（`shop.js` が `couponEl.value.trim()` を送信）なので UI は事前に弾けず、検証はサーバー責務になる。旧A5（二重キャンセル）はフロントがキャンセル済み注文にボタンを出さない（`orders.js`）ため UI から再現不能になり、本課題へ差し替えた。
+- **UI再現性メモ**: クーポンコードはフロントの自由入力テキスト（`shop.js` が `couponEl.value.trim()` を送信）なので UI は事前に弾けず、検証はサーバー責務になる。
 
 ### A6. NotFound が 500 になる
 - **仕込み箇所（案1: Service 側）**: `<root>/Services/OrderService.cs` `GetByIdAsync`
@@ -151,7 +151,7 @@ public async Task OrderItem_keeps_unit_price_even_after_product_price_changes()
 - **再現**: ボールペン1本 + `SALE10`（税抜 150 → 135 → 税込 148.5）→ 期待 149 が 148 になる。
   - ※シード商品の価格は全て 50 の倍数。50 の倍数 ×1.10 は必ず整数になるので、**クーポン無し（や定額 `WELCOME500`）では税込が小数にならず、この仕込みは一切再現しない**。端数が出るのは定率 `SALE10`（正味係数 0.9×1.10=0.99）を併用したときだけ。
   - ※偶数丸めでズレるのは「税込がちょうど N.5 かつ floor が偶数」のとき。`SALE10` 適用後で言うと税抜 150（→135→148.5）, 350, 550 … が該当。完成形カタログにあった「小計 105 → 115.5 が 115 になる」は**誤り**（115.5 は偶数丸めでも 116。そもそも 105 円という小計も 50 の倍数でない実商品では作れない）。
-- **赤になるテスト**: **無い（仕込んでも全テスト緑のまま）**。完成形の `CalculateTotal_rounds_to_whole_yen`（小計 105・クーポン無し）は上記理由でこの仕込みを検出**できない**。これは「初期テストにこのケースが漏れていた」という想定の課題で、**まず受講者に再現テストを書かせてから直させる**（A8 数量合算と同じ進め方）。解答ブランチに追加しておくテスト:
+- **赤になるテスト**: **無い（仕込んでも全テスト緑のまま）**。完成形の `CalculateTotal_rounds_to_whole_yen`（小計 105・クーポン無し）は上記理由でこの仕込みを検出**できない**。これは「初期テストにこのケースが漏れていた」という想定の課題で、**まず受講者に再現テストを書かせてから直させる**（A8 マイナス請求と同じ進め方）。解答ブランチに追加しておくテスト:
 
 ```csharp
 [Fact]
@@ -169,44 +169,54 @@ public void CalculateTotal_rounds_half_up_with_percentage_coupon()
 - **解答**: `MidpointRounding.AwayFromZero` に戻す。
 - ※C# は `Math.Round` 既定が偶数丸め。他言語では罠が逆になる（カタログ「移植時の注意」参照）。
 
-### A8. 数量合算漏れ（同一商品の複数行）
-- **仕込み箇所**: `<root>/Services/OrderService.cs` `CreateAsync`
+### A8. 割引で請求がマイナスになる（0円下限の欠落）
+- **仕込み箇所**: `<root>/Services/PricingService.cs` `ApplyCoupon`、および `<root>/../tests/PricingServiceTests.cs`
+
+「テストの穴」版なので**仕込みは2箇所**: ①クランプを外す ②それを検出する既存テストを配布ブランチから削除し、緑のまま出題する。
 
 ```diff
--        // 同じ商品が複数行で来ても在庫チェックが正しく効くよう、商品ごとに数量を合算する
--        var requestedQuantities = request.Items
--            .GroupBy(i => i.ProductId)
--            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-+        // ← 仕込み: 合算せず行をそのまま辞書化（同一商品が複数行だと最後の行で上書きされる）
-+        var requestedQuantities = request.Items
-+            .ToDictionary(i => i.ProductId, i => i.Quantity);
+         var discounted = coupon.DiscountType switch
+         {
+             DiscountType.FixedAmount => subtotal - coupon.DiscountValue,
+             DiscountType.Percentage => subtotal * (1m - coupon.DiscountValue / 100m),
+             _ => subtotal
+         };
+
+-        // 割引で 0 円未満になっても請求は 0 円までとする
+-        return discounted < 0m ? 0m : discounted;
++        // ← 仕込み: 0円クランプを外す（割引額 > 小計でマイナスがそのまま流れる）
++        return discounted;
 ```
 
-> 別バリエーション（より分かりやすい破綻）: 在庫チェックを `request.Items` ごとに行う形 → 在庫50に「30 + 30」が通る。受講者レベルで選ぶ。
+```diff
+ // tests/PricingServiceTests.cs から、クランプを検出する既存テストを削除する（緑のまま出題するため）
+-    [Fact]
+-    public void ApplyCoupon_never_goes_below_zero()
+-    {
+-        var coupon = new Coupon { DiscountType = DiscountType.FixedAmount, DiscountValue = 5000m };
+-
+-        Assert.Equal(0m, _pricing.ApplyCoupon(1800m, coupon));
+-    }
+```
 
-- **再現**: `items: [{1, 30}, {1, 30}]`（在庫50のノート）→ 正: 合算60で 400 / バグ: 30 で通る。
-- **赤になるテスト**: 完成形に合算ケースが無い。**まず再現テストを書かせる**。解答ブランチに追加しておくテスト:
+- **再現**: カートでノート1点(300) + `WELCOME500`（定額500引き）→ 正: 割引後 −200 を 0 にクランプ → 税込 **0円** / バグ: (300−500)×1.10 = **−220円** がそのまま表示・成立。割引額より小計が大きい通常注文（例 マグカップ1200 + `WELCOME500` → 770）はこれまで通り正しい。
+- **赤になるテスト**: **無い（上記②でクランプ検証テストを外したため全テスト緑）**。**まず受講者に再現テストを書かせてから直させる**（A7 と同じ進め方）。解答ブランチに追加しておくテスト（外したものを end-to-end 形で復活させると symptom に対応して分かりやすい）:
 
 ```csharp
 [Fact]
-public async Task CreateAsync_aggregates_quantity_for_same_product()
+public void CalculateTotal_clamps_to_zero_when_coupon_exceeds_subtotal()
 {
-    using var db = SeededContext();
-    var service = CreateService(db);
-    var request = new CreateOrderRequest
-    {
-        Items = new()
-        {
-            new CreateOrderItemRequest { ProductId = 2, Quantity = 12 },
-            new CreateOrderItemRequest { ProductId = 2, Quantity = 12 } // 合算24、在庫20
-        }
-    };
-    await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateAsync(request));
+    var items = Items((300m, 1)); // ノート1点 = 小計 300
+    var coupon = new Coupon { DiscountType = DiscountType.FixedAmount, DiscountValue = 500m }; // WELCOME500
+
+    // 割引後は 0 円未満 → 0 円にクランプ。税込も 0（バグだと (300-500)*1.10 = -220）
+    Assert.Equal(0m, _pricing.CalculateTotal(items, coupon));
 }
 ```
 
-- **ヒント段階**: ①同じ商品を2行に分けると何が起きる？手で叩け。 ②在庫チェックは合算後の数量で行われているか？ ③まず壊れを再現するテストを書いてから直す。
-- **解答**: `GroupBy(...).Sum()` で合算する形に戻す。
+- **ヒント段階**: ①`dotnet test` は全部緑なのに、安い商品＋高額クーポンで合計がマイナスになる——既存テストはこのケース（割引額 > 小計）を試していない。②まず壊れを再現するテストを書く（どんな注文ならマイナスになる？ 小計を下回る定額クーポンが鍵）。③金額計算はどの層・どのクラス？ ④割引後の値に「下限（0円）」のガードはあるか？
+- **解答**: `discounted < 0m ? 0m : discounted` のクランプを戻す。
+- **UI再現性メモ**: クーポンコードはフロントの自由入力（`shop.js` が `couponEl.value.trim()` を送信）なので、安い商品1点＋小計超えの定額クーポンを UI から確実に再現できる。
 
 ---
 
