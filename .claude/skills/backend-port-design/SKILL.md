@@ -47,7 +47,11 @@ ORM・DB・テストフレームワークまで指定が無ければ、その言
 - `Entities/*`, `Dtos/*` — データモデルと入出力の形
 - `Middleware/ExceptionHandlingMiddleware.cs`, `Exceptions/AppExceptions.cs` — エラー → HTTP 変換
 - `Data/SeedData.cs` — 初期データの実値
-- ルートの `README.md` / `training-app-plan.md` — 方針・制約
+- `training-shared/plans/common/アプリ仕様.md` — 言語非依存の契約（API・業務ロジック・テスト観点）の正
+- `training-shared/plans/common/課題カタログ.md` — 言語非依存の研修課題カタログ（移植時の注意つき。解答情報を含むので扱い注意）
+- `training-shared/plans/csharp/仕様_csharp.md` — C# 固有事項（バージョン・構成・起動・DB 初期化）
+- `training-shared/db/データモデル.md` — 言語非依存の DB エンティティ表（型マッピングの基準）
+- リポジトリルートの `README.md` — 方針・制約・ディレクトリ構成
 
 抽出は下の「不変条件チェックリスト」で漏れを潰す。C# 実装がチェックリストと食い違っていたら**実コードを正**とし、その旨を設計書に注記する。
 
