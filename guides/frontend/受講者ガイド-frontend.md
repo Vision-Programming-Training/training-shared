@@ -20,26 +20,6 @@
 - backend は **`main` のまま**起動します（フロント課題ではバックエンドのブランチは切り替えません）。
 - 注文やキャンセルを繰り返すとデータが変わります。最初の状態に戻したいときは、backend を止めて `training.db`（と `-shm` / `-wal`）を削除してから起動し直してください（初期データが入り直します。手順は backend の README 参照）。
 
-### フロントのコードの地図
-
-```
-js/
-├── entries/   各画面の入口（ボタンが押されたら何をするか、を決める）
-│   ├── shop.js     店舗（index.html）
-│   ├── orders.js   注文履歴（orders.html）
-│   └── admin.js    管理（admin.html）
-├── core/      DOM を触らない土台
-│   ├── api.js      fetch でサーバーと通信する
-│   ├── cart.js     カートの状態（データ）
-│   └── config.js   接続先 URL
-└── ui/        DOM を触る描画
-    ├── render.js
-    └── components/topbar.js  ヘッダー
-```
-
-「通信は `api.js`、データは `cart.js`、画面は `render.js`、つなぐのは `entries`」という分担になっています。<br>
-**症状が「通信」「データ」「画面」のどれっぽいか**を考えると、読むファイルが絞れます。
-
 ---
 
 ## 2. DevTools の使い方（必修）
