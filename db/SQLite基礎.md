@@ -152,7 +152,7 @@ SELECT * FROM Product WHERE Name = 'ノート';
 | `<>` または `!=` | 等しくない |
 | `>` `>=` `<` `<=` | 大小 |
 | `AND` / `OR` | かつ / または |
-| `LIKE 'ノート%'` | 部分一致（`%` は任意の文字列）。C1（商品名検索）課題で使う |
+| `LIKE 'ノート%'` | 部分一致（`%` は任意の文字列） |
 | `IS NULL` / `IS NOT NULL` | 空かどうか（`= NULL` ではなく `IS NULL`） |
 
 ```sql
@@ -314,7 +314,6 @@ SELECT * FROM Product;   -- ふつうの SQL は最後に「;」が必要
 | 「金額がずれる（A1/A7）」→ 注文の明細と単価を確認 | §5 の JOIN |
 | 「数量合算漏れ（A8）」→ 同一商品の明細を確認 | §6 の `GROUP BY` |
 | 「過去注文が値上げで変わる（A3）」→ `UnitPrice` を確認 | `SELECT UnitPrice FROM OrderItem WHERE OrderId = ?` |
-| 「商品名検索（C1）」 | `WHERE Name LIKE '%キーワード%'` |
 
 **コードを読む前に、DB の実データを `SELECT` で見て「症状」を自分の目で確認する。**<br>
 これができると、原因の切り分け（アプリのバグか / データの問題か）が一気に速くなります。

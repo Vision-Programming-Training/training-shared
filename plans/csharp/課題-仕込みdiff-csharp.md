@@ -242,23 +242,6 @@ public void CalculateTotal_clamps_to_zero_when_coupon_exceeds_subtotal()
 
 ---
 
-## C. 機能追加型（C# 触り所）
-
-### C1. 商品検索
-- **触る層**: `Controllers/ProductsController.cs`（クエリ受け取り、薄く）/ `Repositories/ProductRepository.cs`（`Where(p => p.Name.Contains(keyword))`）/ Service。
-- **フロント**: `training-frontend` に検索ボックス（別課題として切れる）。
-- **テスト**: keyword 一致 / 不一致 / 空。
-
-### C2. 注文ステータス更新 API
-- **触る層**: `Controllers/OrdersController.cs`（`confirm` エンドポイント）/ `Services/OrderService.cs`（遷移ロジック）。
-- **注意**: 完成形は作成時 `Confirmed` 固定。`Pending` を作る経路をどうするかは設計判断を委ねる。
-
-### C3. 在庫切れの表示（フロント主体）
-- **触る層**: `training-frontend/js/ui.js` 中心。**バックエンド改修不要**（API は既に `stock` を返す）。
-- 全言語版で同一の課題（フロント共有）。
-
----
-
 ## D. 横断・チーム開発型（C# 触り所）
 
 ### D1. N+1 を体感する

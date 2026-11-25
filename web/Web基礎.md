@@ -14,8 +14,8 @@
 
 | 登場人物 | ざっくり言うと | この研修での実体 |
 |---|---|---|
-| **クライアント** | 「お願いする側」。ユーザーが直接触る画面 | ブラウザで動く [training-frontend](../guides/受講者ガイド.md)（HTML + JavaScript） |
-| **サーバー** | 「お願いされて仕事をする側」。裏方 | [training-backend](../guides/受講者ガイド.md)（バックエンド） |
+| **クライアント** | 「お願いする側」。ユーザーが直接触る画面 | ブラウザで動く [training-frontend](../guides/frontend/受講者ガイド-frontend.md)（HTML + JavaScript） |
+| **サーバー** | 「お願いされて仕事をする側」。裏方 | [training-backend](../guides/backend/受講者ガイド-backend.md)（バックエンド） |
 
 ```mermaid
 flowchart LR
